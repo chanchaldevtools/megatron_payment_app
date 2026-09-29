@@ -9,8 +9,8 @@ import {
   StatusBar,
   SafeAreaView,
   Alert,
-  Modal, // ⚠️ Added Modal
-  TextInput, // ⚠️ Added TextInput for the modal
+  Modal,
+  TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage'; 
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -46,17 +46,15 @@ interface Trip {
   status?: 'completed' | 'Active' | 'upcoming';
   distance?: string;
   earnings?: string;
-
   checkedBy?: string | null;
+  rate?: number;
+  weight?: number;
+  driver_name?: string;
 }
 
 type FilterType = 'All' | 'Checked' | 'Non-Checked';
 
-// --- Global/Mock Constants (Used for checkedBy value, Admin check logic is now dynamic)
-const MOCK_CURRENT_USER_ID = 'AdminUser123'; 
-
 // --- END: Interface Definitions ---
-
 
 const VehicleTripsScreen: React.FC<Props> = ({ navigation, route }) => {
   const { vehicleNumber, vehicle } = route.params;
@@ -65,38 +63,38 @@ const VehicleTripsScreen: React.FC<Props> = ({ navigation, route }) => {
   const [vehicleNumbers, setVehicleNumbers] = useState('');
   const [filter, setFilter] = useState<FilterType>('All'); 
   const [userType, setUserType] = useState<string | null>(null); 
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
   const isAdmin = userType === 'Admin' || userType === 'admin'; 
 
-  // ⚠️ NEW State for Edit Modal
+  // State for Edit Modal
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
   const [newRate, setNewRate] = useState('');
   const [newWeight, setNewWeight] = useState('');
   const [newTrip, setNewTrip] = useState('');
 
+  // Fetch user data on mount
   useEffect(() => {
-    const fetchUserType = async () => {
+    const fetchUserData = async () => {
       try {
-        const type = await AsyncStorage.getItem('userData');
-        if (type) {
-          const parsed = JSON.parse(type);
-          // Assuming user_type is the correct field in the stored user data
-          setUserType(parsed?.user_type || null); 
+        const userData = await AsyncStorage.getItem('userData');
+        if (userData) {
+          const parsed = JSON.parse(userData);
+          setUserType(parsed?.user_type || null);
+          setCurrentUser(parsed?.name || parsed?.username || 'AdminUser');
         }
       } catch (error) {
-        console.error('Error fetching user type:', error);
+        console.error('Error fetching user data:', error);
       }
     };
-    fetchUserType();
+    fetchUserData();
   }, []);
   
   const fetchTrips = useCallback(async () => {
     try {
       setLoading(true);
       setVehicleNumbers(vehicle?.vehicle_number || vehicleNumber || 'N/A');
-      // NOTE: Assuming TransportList returns the trips with 'rate' and 'waight' fields
       const response = await apiService.TransportList(vehicle.id); 
-      // Ensure the response data matches the Trip interface structure
       const data: Trip[] = response || []; 
       setTrips(data); 
     } catch (err) {
@@ -115,40 +113,60 @@ const VehicleTripsScreen: React.FC<Props> = ({ navigation, route }) => {
     }, [fetchTrips])
   );
 
-  // 1. Check Trip Logic (Updated as per previous request)
-  const handleMakeChecked = async (tripId: number) => {
+  // Handle Check/Uncheck Trip
+  const handleMakeChecked = async (tripId: number, currentStatus: boolean) => {
     if (!isAdmin) {
       Alert.alert("Permission Denied", "Only administrators can mark a trip as checked.");
       return;
     }
 
+    const action = currentStatus ? 'UNCHECK' : 'CHECK';
+    const actionText = currentStatus ? 'uncheck' : 'check';
+
     Alert.alert(
-      `CHECK Trip`,
-      `Are you sure you want to mark this trip as checked? This action cannot be undone.`,
+      `${action} Trip`,
+      `Are you sure you want to ${actionText} this trip?`,
       [
         { text: "Cancel", style: "cancel" },
         { 
-          text: 'CHECK', 
-          style: 'default',
+          text: action, 
+          style: currentStatus ? 'destructive' : 'default',
           onPress: async () => {
             try {
-              // API Call to mark as checked
-              const response = await apiService.MakeChecked({ transport_id: tripId });
+              // Show loading indicator
+              setLoading(true);
+              
+              // API Call to toggle check status
+              const response = await apiService.MakeChecked({ 
+                transport_id: tripId,
+                user_name: currentUser || 'AdminUser'
+              });
               
               if(response?.status === true){
+                // Update local state - toggle checkedBy
                 setTrips(currentTrips => 
-                  currentTrips.map(trip => 
-                    // Update only the checkedBy field
-                    trip.id === tripId ? { ...trip, checkedBy: MOCK_CURRENT_USER_ID } : trip
-                  )
+                  currentTrips.map(trip => {
+                    if (trip.id === tripId) {
+                      // If currently checked, set to null; if unchecked, set to current user
+                      return { 
+                        ...trip, 
+                        checkedBy: currentStatus ? null : currentUser || 'AdminUser'
+                      };
+                    }
+                    return trip;
+                  })
                 );
-                Alert.alert("Success", "Trip has been successfully marked as checked!");
+                
+                // Show success message with correct action
+                Alert.alert("Success", `Trip ${actionText}ed successfully!`);
               } else {
-                Alert.alert("Error", response?.message || "Failed to mark trip as checked.");
+                Alert.alert("Error", response?.message || `Failed to ${actionText} trip.`);
               }
             } catch (error) {
-              console.error(`Error updating check status for trip ${tripId}:`, error);
+              console.error(`Error toggling check status for trip ${tripId}:`, error);
               Alert.alert("Error", "A network error occurred. Please try again.");
+            } finally {
+              setLoading(false);
             }
           } 
         },
@@ -156,15 +174,12 @@ const VehicleTripsScreen: React.FC<Props> = ({ navigation, route }) => {
     );
   };
 
-  // 2. NEW: Edit Transport Modal Handlers
+  // Edit Transport Modal Handlers
   const openEditModal = (trip: Trip) => {
-    
     setEditingTrip(trip);
-    // Initialize inputs with current values (default to empty string if null/undefined)
     setNewRate(String(trip.rate || '')); 
     setNewWeight(String(trip.weight || ''));
-    setNewTrip(String(trip.trip_id|| ''));
-    
+    setNewTrip(String(trip.trip_id || ''));
     setEditModalVisible(true);
   };
 
@@ -173,7 +188,7 @@ const VehicleTripsScreen: React.FC<Props> = ({ navigation, route }) => {
 
     const rateValue = parseFloat(newRate);
     const weightValue = parseFloat(newWeight);
-     const tripValue = newTrip;
+    const tripValue = newTrip;
 
     // Validation
     if (isNaN(rateValue) || rateValue <= 0) {
@@ -184,19 +199,18 @@ const VehicleTripsScreen: React.FC<Props> = ({ navigation, route }) => {
       Alert.alert("Validation Error", "Please enter a valid weight (number greater than 0).");
       return;
     }
-    if (tripValue <= 0) {
+    if (!tripValue || tripValue.trim() === '') {
       Alert.alert("Validation Error", "Please enter a valid Trip ID");
       return;
     }
 
     setLoading(true);
     try {
-      // API Call to update rate and weight
       const response = await apiService.editrate({
         transport_id: String(editingTrip.id),
-        rate: String(rateValue), // API expects string
-        waight: String(weightValue), // API expects string
-        trip_id: String(tripValue),
+        rate: String(rateValue),
+        waight: String(weightValue),
+        trip_id: tripValue.trim(),
         type: 'Main',
       });
 
@@ -205,16 +219,15 @@ const VehicleTripsScreen: React.FC<Props> = ({ navigation, route }) => {
         setTrips(currentTrips => 
           currentTrips.map(trip => 
             trip.id === editingTrip.id 
-              ? { ...trip, rate: rateValue, waight: weightValue } 
+              ? { ...trip, rate: rateValue, weight: weightValue, trip_id: tripValue.trim() } 
               : trip
           )
         );
-        Alert.alert("Success", "Trip rate and weight updated successfully!");
+        Alert.alert("Success", "Trip details updated successfully!");
         setEditModalVisible(false);
       } else {
-        Alert.alert('Error',response.message);
+        Alert.alert('Error', response?.message || 'Failed to update trip details');
       }
-
     } catch (error) {
       console.error(`Error updating transport details for trip ${editingTrip.id}:`, error);
       Alert.alert("Error", "A network error occurred during the update.");
@@ -222,8 +235,6 @@ const VehicleTripsScreen: React.FC<Props> = ({ navigation, route }) => {
       setLoading(false);
     }
   };
-
-  // --- END: API & Data Logic ---
 
   // Filtering logic
   const filteredTrips = useMemo(() => {
@@ -265,8 +276,7 @@ const VehicleTripsScreen: React.FC<Props> = ({ navigation, route }) => {
   );
 
   const WatermarkStamp = ({ isChecked }: { isChecked: boolean }) => {
-    // Determine color based on checked status
-    const stampColor = isChecked ? '#10B981' : '#EF4444'; // Green for checked, Red for unchecked
+    const stampColor = isChecked ? '#10B981' : '#EF4444';
     const stampBackgroundColor = isChecked ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)';
     const stampBorderColor = isChecked ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)';
 
@@ -340,13 +350,13 @@ const VehicleTripsScreen: React.FC<Props> = ({ navigation, route }) => {
             placeholder="Enter new weight"
             keyboardType="numeric"
           />
+          
           <Text style={modalStyles.label}>Trip Id *</Text>
           <TextInput
             style={modalStyles.input}
             onChangeText={setNewTrip}
             value={newTrip}
             placeholder="Enter new TripId"
-            
           />
 
           <View style={modalStyles.buttonContainer}>
@@ -376,7 +386,6 @@ const VehicleTripsScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const renderTripItem = ({ item, index }: { item: Trip; index: number }) => {
     const isChecked = !!item.checkedBy;
-    // Greenish for checked, Yellowish for unchecked (Pending Review)
     const cardBackgroundColor = isChecked ? '#E6FFF9' : '#FFFBEB'; 
 
     return (
@@ -429,13 +438,15 @@ const VehicleTripsScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
           
           
+
+          {/* Action Buttons */}
           <View style={styles.checkedByRow}>
-            
-           {!isChecked && (
+            {/* Edit Transport Button - Always visible for unchecked trips */}
+            {!isChecked && (
               <TouchableOpacity
                 style={[
                   styles.adminCheckButton,
-                  { backgroundColor: '#3B82F6', marginRight: responsiveWidth(8) } // Blue for Edit
+                  { backgroundColor: '#3B82F6', marginRight: responsiveWidth(8) }
                 ]}
                 onPress={() => openEditModal(item)}
               >
@@ -448,28 +459,27 @@ const VehicleTripsScreen: React.FC<Props> = ({ navigation, route }) => {
                   Edit Transport
                 </Text>
               </TouchableOpacity>
-           )}
+            )}
 
-           
-            {isAdmin && !isChecked && (
+            {/* Check/Uncheck Button - Only for Admin */}
+            {isAdmin && (
               <TouchableOpacity
                 style={[
                   styles.adminCheckButton,
-                  { backgroundColor: '#006D5B' }
+                  { backgroundColor: isChecked ? '#EF4444' : '#006D5B' }
                 ]}
-                onPress={() => handleMakeChecked(item.id)}
+                onPress={() => handleMakeChecked(item.id, isChecked)}
               >
                 <Icon 
-                  name="checkmark-circle-outline" 
+                  name={isChecked ? "close-circle-outline" : "checkmark-circle-outline"} 
                   size={responsiveFont(14)} 
                   color="#fff" 
                 />
                 <Text style={styles.adminCheckButtonText}>
-                  Check Trip
+                  {isChecked ? 'Uncheck Trip' : 'Check Trip'}
                 </Text>
               </TouchableOpacity>
             )}
-
           </View>
         </View>
       </TouchableOpacity>
@@ -500,7 +510,7 @@ const VehicleTripsScreen: React.FC<Props> = ({ navigation, route }) => {
       <FilterButtons />
 
       {/* Content */}
-      {loading && !trips.length ? ( // Show loading only initially or on refresh
+      {loading && !trips.length ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#006D5B" />
           <Text style={styles.loadingText}>Loading trips...</Text>
@@ -522,7 +532,7 @@ const VehicleTripsScreen: React.FC<Props> = ({ navigation, route }) => {
               <Text style={styles.emptyStateText}>
                 {filter === 'All' 
                   ? 'No trips recorded for this vehicle yet.'
-                  : `Try selecting 'All' to view all trips or 'Non-Checked' to find pending trips.`
+                  : `Try selecting 'All' to view all trips.`
                 }
               </Text>
               {filter === 'All' && (
@@ -560,7 +570,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB', 
   },
   header: {
-    backgroundColor: '#006D5B', // Theme color
+    backgroundColor: '#006D5B',
     paddingHorizontal: responsiveWidth(20),
     paddingTop: responsiveHeight(10),
     paddingBottom: responsiveHeight(20),
@@ -734,7 +744,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: responsiveHeight(2),
   },
-   tripDateTwo: {
+  tripDateTwo: {
     fontSize: responsiveFont(12),
     color: '#000000',
     marginTop: responsiveHeight(2),
@@ -816,35 +826,31 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: responsiveHeight(2),
   },
-  // ⚠️ NEW: Metrics Styles
-  tripMetrics: {
+  checkedStatusContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: responsiveHeight(10),
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: responsiveHeight(8),
+    marginBottom: responsiveHeight(8),
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
-    marginBottom: responsiveHeight(10),
   },
-  metricItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: responsiveWidth(4),
+  checkedStatusLabel: {
+    fontSize: responsiveFont(12),
+    fontWeight: '600',
+    color: '#4B5563',
   },
-  metricLabel: {
+  checkedStatusValue: {
+    fontWeight: '700',
+  },
+  checkedByText: {
     fontSize: responsiveFont(12),
     color: '#6B7280',
     fontWeight: '500',
   },
-  metricValue: {
-    fontSize: responsiveFont(13),
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  // ---
-
   checkedByRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end', // Aligned to the right
+    justifyContent: 'flex-end',
     alignItems: 'center',
     marginTop: responsiveHeight(10),
   },
@@ -918,7 +924,6 @@ const styles = StyleSheet.create({
   },
 });
 
-// ⚠️ NEW: Modal specific styles
 const modalStyles = StyleSheet.create({
   centeredView: {
     flex: 1,

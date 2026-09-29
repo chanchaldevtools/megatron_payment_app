@@ -2,7 +2,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 //export const IMAGE_URL = 'https://truckapp.inextwebs.com/storage/app/public/';
-export const IMAGE_URL = 'http://inextwebs.com/testmode-calculationapp/storage/app/public/';
+export const IMAGE_URL = 'https://testtruckapp.inextwebs.com/storage/app/public/';
 
 export interface Vehicle {
   id: number;
@@ -29,7 +29,7 @@ interface ApiResponse {
 // });
 
 const API = axios.create({
-  baseURL: 'http://inextwebs.com/testmode-calculationapp/api',
+  baseURL: 'https://testtruckapp.inextwebs.com/api',
   timeout: 20000,
 });
 
@@ -201,6 +201,54 @@ login: async (phone: string) => {
       throw error;
     }
   },
+
+ generateEmergencyRequest: async (payload: {
+    creator_name: string;
+    message: string;
+    status: string;
+    vehicle_id: string;
+  }) => {
+    try {
+      const formData = new FormData();
+      formData.append('creator_name', payload.creator_name);
+      formData.append('message', payload.message);
+      formData.append('status', payload.status);
+      formData.append('vehicle_id', payload.vehicle_id);
+
+      console.log('Emergency Request Payload:', {
+        creator_name: payload.creator_name,
+        message: payload.message,
+        status: payload.status,
+        vehicle_id: payload.vehicle_id,
+      });
+
+      const response = await fetch(
+        'https://inextwebs.com/testmode-calculationapp/api/overdue/generate_emergency_request',
+        {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+          },
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+      console.log('Emergency Request Response:', data);
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to send emergency request');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Emergency request error:', error);
+      throw error;
+    }
+  },
+
+
+
 ChildtransportStore: async (vehicleId: number, data: any) => {
     try {
       const formData = toFormData(data); // Convert to FormData if needed

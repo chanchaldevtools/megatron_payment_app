@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import ImagePicker from 'react-native-image-crop-picker';
 import { apiService } from '../../services/ApiServices';
-import * as Sentry from '@sentry/react-native';
+
 import { Button } from 'react-native-paper';
 import {
   widthPercentageToDP as wp,
@@ -198,7 +198,7 @@ const VehicleInfo = ({ transports, DataType }) => {
           id: item.id || `temp-${index + 1}`,
           category: item.comment || 'Unknown',
           amount: `₹${parseInt(item.amount || 0).toLocaleString()}`,
-          date: item.date || new Date().toISOString().split('T')[0],
+          date: new Date(item.created_at).toISOString().split('T')[0],
           location: item.location || 'N/A',
           payment_status: item.payment_status || 'Pending',
           payment_mode: item.payment_mode || 'N/A',

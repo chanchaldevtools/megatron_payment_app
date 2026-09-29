@@ -1,4 +1,4 @@
-import React, { useState,useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -16,13 +16,13 @@ import {
   PermissionsAndroid, 
   Platform 
 } from 'react-native';
-// import * as ImagePicker from 'react-native-image-picker'; // <-- REMOVED
-import ImageCropPicker, { cleanSingle } from 'react-native-image-crop-picker'; // <-- ADDED FOR CROPPING
+import ImageCropPicker from 'react-native-image-crop-picker';
 import { apiService } from '../../services/ApiServices';
 import { useNavigation } from '@react-navigation/native';
 import { WebView } from 'react-native-webview';
 import { RNHTMLtoPDF } from 'react-native-html-to-pdf';
 import RNFS from 'react-native-fs';
+import SplitPaymentModal from './SplitPaymentModal';
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -32,30 +32,32 @@ interface TripDetailsProps {
   transportData: any;
   paymentHistory: any;
 }
-const TripDetails = ({ transportData, Paymenthistory,vehicle,DataType }: TripDetailsProps) => {
+
+const TripDetails = ({ transportData, Paymenthistory, vehicle, DataType }: TripDetailsProps) => {
   const tripData = transportData;
-  const PaymentList=Paymenthistory;
+  const PaymentList = Paymenthistory;
   const navigation = useNavigation();
-  const [DCloading,setDCloading]=useState(false);
+  const [DCloading, setDCloading] = useState(false);
   const [DriverCash, setDriverCash] = useState(0);
-  const [Advac,setAdvac]=useState(0);
-  const [AdvaLoader,setAdvaLoader]=useState(false);
-  const [Advbc,setAdvbc]=useState(0);
-  const [AdvbcLoader,setAdvbcLoader]=useState(false);
-  const [VE,setVE]=useState(0);
-  const [DE,setDE]=useState(0);
-  const [RE,setRE]=useState(0);
+  const [Advac, setAdvac] = useState(0);
+  const [AdvaLoader, setAdvaLoader] = useState(false);
+  const [Advbc, setAdvbc] = useState(0);
+  const [AdvbcLoader, setAdvbcLoader] = useState(false);
+  const [VE, setVE] = useState(0);
+  const [DE, setDE] = useState(0);
+  const [RE, setRE] = useState(0);
   const [htmlContent, setHtmlContent] = useState(null);
   const [loading, setLoading] = useState(false);
   const [webviewVisible, setWebviewVisible] = useState(false);
   const [error, setError] = useState(null);
-  const [fetchingBill,setfetchingBill]=useState(false);
+  const [fetchingBill, setfetchingBill] = useState(false);
   const [GCloading, setGCloading] = useState(false);
-   const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [isDisabled, setIsDisabled] = useState(false);
-  
-    useEffect(() => {
-     
+  const [splitModalVisible, setSplitModalVisible] = useState(false);
+  const [splitLoader, setSplitLoader] = useState(false);
+
+  useEffect(() => {
     if (PaymentList) {
       console.log(PaymentList);
       setDriverCash(PaymentList.DC);
@@ -66,6 +68,7 @@ const TripDetails = ({ transportData, Paymenthistory,vehicle,DataType }: TripDet
       setRE(PaymentList.RE);
     }
   }, [PaymentList]);
+
   const [advanceAccountModal, setAdvanceAccountModal] = useState(false);
   const [companyAdvanceModal, setCompanyAdvanceModal] = useState(false);
   const [driverCashModal, setDriverCashModal] = useState(false);
@@ -75,16 +78,17 @@ const TripDetails = ({ transportData, Paymenthistory,vehicle,DataType }: TripDet
     comment: '',
     paymentPhoto: null
   });
-const [guaranteeChargeModal, setGuaranteeChargeModal] = useState(false);
-const [guaranteeChargeData, setGuaranteeChargeData] = useState({
-  id: '',
-  dataType: '',
-  amount: '',
-});
-  
+
+  const [guaranteeChargeModal, setGuaranteeChargeModal] = useState(false);
+  const [guaranteeChargeData, setGuaranteeChargeData] = useState({
+    id: '',
+    dataType: '',
+    amount: '',
+  });
+
   const [companyAdvanceData, setCompanyAdvanceData] = useState({
     amount: '',
-    comments:'',
+    comments: '',
     location: '',
     status: 'pending',
     paymentMode: 'CASH',
@@ -97,91 +101,90 @@ const [guaranteeChargeData, setGuaranteeChargeData] = useState({
     },
     qrCode: null
   });
-const requestStoragePermission = async () => {
-  if (Platform.OS === 'android') {
-    const granted = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-      {
-        title: 'Storage Permission Required',
-        message: 'App needs access to your storage to download PDF',
-      }
-    );
-    return granted === PermissionsAndroid.RESULTS.GRANTED;
-  }
-  return true;
-};
 
-const generatePDF = async () => {
-  const isPermitted = await requestStoragePermission();
-  if (!isPermitted) {
-    Alert.alert('Permission Denied!');
-    return;
-  }
-
-  const htmlContent = `
-    <h1 style="text-align:center;color:#2196F3;">Hello PDF</h1>
-    <p>This PDF is generated from HTML in React Native.</p>
-  `;
-
-  let options = {
-    html: htmlContent,
-    fileName: 'MyInvoice',
-    directory: 'Downloads',
+  const requestStoragePermission = async () => {
+    if (Platform.OS === 'android') {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+        {
+          title: 'Storage Permission Required',
+          message: 'App needs access to your storage to download PDF',
+        }
+      );
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    }
+    return true;
   };
-  try {
-    let file = await RNHTMLtoPDF.convert(options);
-    console.log('files',file);
-    Alert.alert('PDF Downloaded', 'Saved at: ' + file.filePath);
-  } catch (error) {
-    console.log('PDF ERROR:', error);
-  }
-};
-const [driverCashData, setDriverCashData] = useState({
+
+  const generatePDF = async () => {
+    const isPermitted = await requestStoragePermission();
+    if (!isPermitted) {
+      Alert.alert('Permission Denied!');
+      return;
+    }
+
+    const htmlContent = `
+      <h1 style="text-align:center;color:#2196F3;">Hello PDF</h1>
+      <p>This PDF is generated from HTML in React Native.</p>
+    `;
+
+    let options = {
+      html: htmlContent,
+      fileName: 'MyInvoice',
+      directory: 'Downloads',
+    };
+    try {
+      let file = await RNHTMLtoPDF.convert(options);
+      console.log('files', file);
+      Alert.alert('PDF Downloaded', 'Saved at: ' + file.filePath);
+    } catch (error) {
+      console.log('PDF ERROR:', error);
+    }
+  };
+
+  const [driverCashData, setDriverCashData] = useState({
     amount: '',
     location: '',
     paidBy: 'Company'
-});
+  });
 
-// === MODIFIED selectImage FUNCTION TO USE react-native-image-crop-picker ===
-const selectImage = async (type, field) => {
+  const selectImage = async (type, field) => {
     try {
-        const image = await ImageCropPicker.openPicker({
-           
-            cropping: true, // Crucial flag to enable cropping screen
-            mediaType: 'photo',
-            cropperToolbarTitle: 'Crop Image',
-            compressImageQuality: 0.7, // Compress image quality to 70%
+      const image = await ImageCropPicker.openPicker({
+        cropping: true,
+        mediaType: 'photo',
+        cropperToolbarTitle: 'Crop Image',
+        compressImageQuality: 0.7,
+      });
+
+      const imageUri = image.path;
+
+      if (type === 'advanceAccount') {
+        setAdvanceAccountData({
+          ...advanceAccountData,
+          paymentPhoto: imageUri
         });
-
-        const imageUri = image.path;
-
-        if (type === 'advanceAccount') {
-          setAdvanceAccountData({
-            ...advanceAccountData,
-            paymentPhoto: imageUri
-          });
-        } else if (type === 'companyAdvance' && field === 'qr') {
-          setCompanyAdvanceData({
-            ...companyAdvanceData,
-            qrCode: imageUri
-          });
-        }
-        
-        Alert.alert('Success', 'Image selected and cropped successfully!');
-        
+      } else if (type === 'companyAdvance' && field === 'qr') {
+        setCompanyAdvanceData({
+          ...companyAdvanceData,
+          qrCode: imageUri
+        });
+      }
+      
+      Alert.alert('Success', 'Image selected and cropped successfully!');
+      
     } catch (error) {
-        if (error.code === 'E_PICKER_CANCELLED') {
-            console.log('User cancelled image picker or crop');
-        } else {
-            console.log('ImagePicker Error: ', error);
-            Alert.alert('Error', 'Failed to select or crop image');
-        }
+      if (error.code === 'E_PICKER_CANCELLED') {
+        console.log('User cancelled image picker or crop');
+      } else {
+        console.log('ImagePicker Error: ', error);
+        Alert.alert('Error', 'Failed to select or crop image');
+      }
     }
-};
-// =========================================================================
+  };
 
-const handleButtonPress = (buttonType) => {
-    switch(buttonType) {
+  const handleButtonPress = (buttonType) => {
+    switch (buttonType) {
       case 'Advance Account':
         setAdvanceAccountModal(true);
         break;
@@ -192,159 +195,160 @@ const handleButtonPress = (buttonType) => {
         setDriverCashModal(true);
         break;
     }
-};
-const handleAdvanceAccountSubmit = async() => {
+  };
+
+  const handleAdvanceAccountSubmit = async () => {
     if (!advanceAccountData.amount || !advanceAccountData.location) {
       Alert.alert('Error', 'Please fill all required fields');
       return;
     }
     setAdvaLoader(true);
-   const payload: any = {
-  payment_type: 'ADVC',
-  amount: advanceAccountData.amount,
-  location: advanceAccountData.location,
-  comment: advanceAccountData.comment,
-  payment_mode: 'CASH',
-  payment_status: 'Pending',
-  payment_raise_picture: advanceAccountData.paymentPhoto,
-};
-if (DataType === 'Main') {
-  payload.transport_id = tripData.id;
-} else {
-  payload.child_id = tripData.id;
-}
-const result = await apiService.AddDriverCash(payload);
+    const payload: any = {
+      payment_type: 'ADVC',
+      amount: advanceAccountData.amount,
+      location: advanceAccountData.location,
+      comment: advanceAccountData.comment,
+      payment_mode: 'CASH',
+      payment_status: 'Pending',
+      payment_raise_picture: advanceAccountData.paymentPhoto,
+    };
+    if (DataType === 'Main') {
+      payload.transport_id = tripData.id;
+    } else {
+      payload.child_id = tripData.id;
+    }
+    const result = await apiService.AddDriverCash(payload);
 
     setAdvac((prev) => prev + Number(advanceAccountData.amount || 0));
     setAdvanceAccountModal(false);
     resetAdvanceAccountForm();
     setAdvaLoader(false);
     Alert.alert('Success', 'Advance Account submitted successfully!');
-};
-const handleCompanyAdvanceSubmit = async() => {
-  const { amount, location,paymentMode, upiId, bankDetails, qrCode } = companyAdvanceData;
-  if (!amount || !location) {
-    Alert.alert('Error', 'Please fill all required fields (Amount & Location)');
-    return;
-  }
+  };
 
-  // Payment mode wise validation
-  if (paymentMode === 'UPI') {
-    if (!upiId) {
-      Alert.alert('Error', 'Please enter UPI ID');
+  const handleCompanyAdvanceSubmit = async () => {
+    const { amount, location, paymentMode, upiId, bankDetails, qrCode } = companyAdvanceData;
+    if (!amount || !location) {
+      Alert.alert('Error', 'Please fill all required fields (Amount & Location)');
       return;
     }
-  }
 
-  if (paymentMode === 'BANK') {
-    if (!bankDetails?.accountHolder || !bankDetails?.bankName || !bankDetails?.accountNumber || !bankDetails?.ifscCode) {
-      Alert.alert('Error', 'Please fill all bank details (Bank Name, Account Number, IFSC Code,Account Holder Name)');
-      return;
+    if (paymentMode === 'UPI') {
+      if (!upiId) {
+        Alert.alert('Error', 'Please enter UPI ID');
+        return;
+      }
     }
-  }
 
-  if (paymentMode === 'QR') {
-    if (!qrCode) {
-      Alert.alert('Error', 'Please select a QR Code image');
-      return;
+    if (paymentMode === 'BANK') {
+      if (!bankDetails?.accountHolder || !bankDetails?.bankName || !bankDetails?.accountNumber || !bankDetails?.ifscCode) {
+        Alert.alert('Error', 'Please fill all bank details (Bank Name, Account Number, IFSC Code, Account Holder Name)');
+        return;
+      }
     }
-  }
 
-  setAdvbcLoader(true);
-  let payload: any = {
-  payment_type: 'ADVACBC',
-  payment_mode: paymentMode ?? null,
-  amount: companyAdvanceData.amount ?? null,
-  location: companyAdvanceData.location ?? null,
-  payment_status: 'Pending',
-  comment:companyAdvanceData.comments ?? null,
-  upi_id: upiId ?? null,
-  bank_name: companyAdvanceData.bankDetails?.bankName ?? null,
-  account_holder_name: companyAdvanceData.bankDetails?.accountHolder ?? null,
-  ifsc_code: companyAdvanceData.bankDetails?.ifscCode ?? null,
-  account_number: companyAdvanceData.bankDetails?.accountNumber ?? null,
-  qr_code_picture: companyAdvanceData.qrCode ?? null,
-};
+    if (paymentMode === 'QR') {
+      if (!qrCode) {
+        Alert.alert('Error', 'Please select a QR Code image');
+        return;
+      }
+    }
 
-if (DataType === 'Main') {
-  payload.transport_id = tripData.id;
-} else {
-  payload.child_id = tripData.id;
-}
+    setAdvbcLoader(true);
+    let payload: any = {
+      payment_type: 'ADVACBC',
+      payment_mode: paymentMode ?? null,
+      amount: companyAdvanceData.amount ?? null,
+      location: companyAdvanceData.location ?? null,
+      payment_status: 'Pending',
+      comment: companyAdvanceData.comments ?? null,
+      upi_id: upiId ?? null,
+      bank_name: companyAdvanceData.bankDetails?.bankName ?? null,
+      account_holder_name: companyAdvanceData.bankDetails?.accountHolder ?? null,
+      ifsc_code: companyAdvanceData.bankDetails?.ifscCode ?? null,
+      account_number: companyAdvanceData.bankDetails?.accountNumber ?? null,
+      qr_code_picture: companyAdvanceData.qrCode ?? null,
+    };
 
-const result = await apiService.AddDriverCash(payload);
+    if (DataType === 'Main') {
+      payload.transport_id = tripData.id;
+    } else {
+      payload.child_id = tripData.id;
+    }
 
-  setAdvbcLoader(false);
- setAdvbc((prev) => prev + Number(companyAdvanceData.amount || 0));
-  setCompanyAdvanceModal(false);
-  resetCompanyAdvanceForm();
-  Alert.alert('Success', 'Company Advance submitted successfully!');
-};
-const handleDriverCashSubmit = async() => {
+    const result = await apiService.AddDriverCash(payload);
 
+    setAdvbcLoader(false);
+    setAdvbc((prev) => prev + Number(companyAdvanceData.amount || 0));
+    setCompanyAdvanceModal(false);
+    resetCompanyAdvanceForm();
+    Alert.alert('Success', 'Company Advance submitted successfully!');
+  };
+
+  const handleDriverCashSubmit = async () => {
     if (!driverCashData.amount || !driverCashData.location) {
       Alert.alert('Error', 'Please fill amount and location');
       return;
     }
     setDCloading(true);
-   let payload: any = {
-  payment_type: 'DC',
-  amount: driverCashData.amount,
-  location: driverCashData.location,
-  payment_mode: 'CASH',
-  payment_status: 'Pending',
-  received_from: driverCashData.paidBy,
-};
-if (DataType === 'Main') {
-  payload.transport_id = tripData.id;
-} else {
-  payload.child_id = tripData.id;
-}
-//console.log(payload);
-const result = await apiService.AddDriverCash(payload);
+    let payload: any = {
+      payment_type: 'DC',
+      amount: driverCashData.amount,
+      location: driverCashData.location,
+      payment_mode: 'CASH',
+      payment_status: 'Pending',
+      received_from: driverCashData.paidBy,
+    };
+    if (DataType === 'Main') {
+      payload.transport_id = tripData.id;
+    } else {
+      payload.child_id = tripData.id;
+    }
+    const result = await apiService.AddDriverCash(payload);
 
     setDCloading(false);
     setDriverCash((prev) => prev + Number(driverCashData.amount || 0));
     setDriverCashModal(false);
     resetDriverCashForm();
     Alert.alert('Success', 'Driver Cash submitted successfully!');
-};
-const resetAdvanceAccountForm = () => {
+  };
+
+  const resetAdvanceAccountForm = () => {
     setAdvanceAccountData({
       amount: '',
       location: '',
       comment: '',
       paymentPhoto: null
     });
-};
-const handleGuaranteeChargeSubmit = async () => {
-  if (!guaranteeChargeData.amount) {
-    Alert.alert("Error", "Please enter an amount");
-    return;
-  }
+  };
 
-  setGCloading(true);
-  try {
-    const payload = {
-      type: guaranteeChargeData.dataType, 
-      transport_id: guaranteeChargeData.id,
-      amount: guaranteeChargeData.amount,
-    };
-   const result = await apiService.ApplyGcharge(payload);
-    if (result.success) {
-      Alert.alert("Success", result.message || "Bilty charge added successfully");
-      
-      setGuaranteeChargeModal(false);
-       navigation.goBack();
-    } else {
-      Alert.alert("Error", result.message || "Failed to add bilty charge");
+  const handleGuaranteeChargeSubmit = async () => {
+    if (!guaranteeChargeData.amount) {
+      Alert.alert("Error", "Please enter an amount");
+      return;
     }
-  } catch (error) {
-    Alert.alert("Error", "Something went wrong");
-  } finally {
-    setGCloading(false);
-  }
-};
+
+    setGCloading(true);
+    try {
+      const payload = {
+        type: guaranteeChargeData.dataType,
+        transport_id: guaranteeChargeData.id,
+        amount: guaranteeChargeData.amount,
+      };
+      const result = await apiService.ApplyGcharge(payload);
+      if (result.success) {
+        Alert.alert("Success", result.message || "Bilty charge added successfully");
+        setGuaranteeChargeModal(false);
+        navigation.goBack();
+      } else {
+        Alert.alert("Error", result.message || "Failed to add bilty charge");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Something went wrong");
+    } finally {
+      setGCloading(false);
+    }
+  };
 
   const resetCompanyAdvanceForm = () => {
     setCompanyAdvanceData({
@@ -370,54 +374,93 @@ const handleGuaranteeChargeSubmit = async () => {
     });
   };
 
-const GetBill = async (BillNumber) => {
-
-  if(BillNumber===null){
-    alert('Bill Number Not Added Yet');
-  }else{
-try {
-      setfetchingBill(true);
-      setError(null);
-      setLoading(true);
-      setHtmlContent(null);
-      const url = 'https://inextwebs.com/megatron/public/api/getbilling';
-      const form = new FormData();
-      form.append('bill_number', BillNumber);
-      const res = await fetch(url, {
-        method: 'POST',
-        body: form,
-      });
-      if(res.ok){
-      const text = await res.text();
-      setHtmlContent(text);
-      setfetchingBill(false);
-      setWebviewVisible(true);
-      }else{
-        alert('Bill Not Generated Yet');
-        setfetchingBill(false);
-      }
-      
-      
-    } catch (err) {
-      console.error('GetBill error', err);
-      setError('Network or parsing error');
-    } finally {
-      setLoading(false);
+  const handleCreateTransaction = () => {
+    if (tripData.checkedBy != null) {
+      Alert.alert('Info', 'Transaction already created');
+      return;
     }
-  }
-    
+    setSplitModalVisible(true);
   };
-const OpenGC = (id, DataType) => {
-  setGuaranteeChargeData({
-    id: id,
-    dataType: DataType,
-    amount: '',
-  });
-  setGuaranteeChargeModal(true);
-};
+
+  // Handle Split Payment Submit
+  const handleSplitSubmit = async (data) => {
+    setSplitLoader(true);
+    try {
+      console.log('Split Payment Data:', data);
+      
+      // Your API call here
+      const payload = {
+        tripId: data.tripId,
+        amount: data.amount,
+        totalAmount: data.totalAmount,
+        location: data.location,
+        comment: data.comment,
+        paymentPhoto: data.paymentPhoto,
+        transport_id: tripData.id,
+        dataType: DataType
+      };
+      
+      // const response = await apiService.createSplitPayment(payload);
+      
+      Alert.alert('Success', 'Split payment created successfully');
+      setSplitModalVisible(false);
+      
+      // Update trip data if needed
+      // setTripData({...tripData, checkedBy: 'User'});
+      
+    } catch (error) {
+      console.error('Error creating split payment:', error);
+      Alert.alert('Error', 'Failed to create split payment');
+    } finally {
+      setSplitLoader(false);
+    }
+  };
+
+  const GetBill = async (BillNumber) => {
+    if (BillNumber === null) {
+      alert('Bill Number Not Added Yet');
+    } else {
+      try {
+        setfetchingBill(true);
+        setError(null);
+        setLoading(true);
+        setHtmlContent(null);
+        const url = 'https://inextwebs.com/megatron/public/api/getbilling';
+        const form = new FormData();
+        form.append('bill_number', BillNumber);
+        const res = await fetch(url, {
+          method: 'POST',
+          body: form,
+        });
+        if (res.ok) {
+          const text = await res.text();
+          setHtmlContent(text);
+          setfetchingBill(false);
+          setWebviewVisible(true);
+        } else {
+          alert('Bill Not Generated Yet');
+          setfetchingBill(false);
+        }
+      } catch (err) {
+        console.error('GetBill error', err);
+        setError('Network or parsing error');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const OpenGC = (id, DataType) => {
+    setGuaranteeChargeData({
+      id: id,
+      dataType: DataType,
+      amount: '',
+    });
+    setGuaranteeChargeModal(true);
+  };
 
   const renderPaymentModeFields = () => {
-    switch(companyAdvanceData.paymentMode) {
+    switch (companyAdvanceData.paymentMode) {
       case 'UPI':
         return (
           <TextInput
@@ -437,7 +480,7 @@ const OpenGC = (id, DataType) => {
               placeholderTextColor="#999"
               value={companyAdvanceData.bankDetails.bankName}
               onChangeText={(text) => setCompanyAdvanceData({
-                ...companyAdvanceData, 
+                ...companyAdvanceData,
                 bankDetails: {...companyAdvanceData.bankDetails, bankName: text}
               })}
             />
@@ -448,7 +491,7 @@ const OpenGC = (id, DataType) => {
               keyboardType="numeric"
               value={companyAdvanceData.bankDetails.accountNumber}
               onChangeText={(text) => setCompanyAdvanceData({
-                ...companyAdvanceData, 
+                ...companyAdvanceData,
                 bankDetails: {...companyAdvanceData.bankDetails, accountNumber: text}
               })}
             />
@@ -458,7 +501,7 @@ const OpenGC = (id, DataType) => {
               placeholderTextColor="#999"
               value={companyAdvanceData.bankDetails.accountHolder}
               onChangeText={(text) => setCompanyAdvanceData({
-                ...companyAdvanceData, 
+                ...companyAdvanceData,
                 bankDetails: {...companyAdvanceData.bankDetails, accountHolder: text}
               })}
             />
@@ -468,7 +511,7 @@ const OpenGC = (id, DataType) => {
               placeholderTextColor="#999"
               value={companyAdvanceData.bankDetails.ifscCode}
               onChangeText={(text) => setCompanyAdvanceData({
-                ...companyAdvanceData, 
+                ...companyAdvanceData,
                 bankDetails: {...companyAdvanceData.bankDetails, ifscCode: text}
               })}
             />
@@ -477,7 +520,7 @@ const OpenGC = (id, DataType) => {
       case 'QR':
         return (
           <View>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.uploadButton}
               onPress={() => selectImage('companyAdvance', 'qr')}
             >
@@ -499,12 +542,13 @@ const OpenGC = (id, DataType) => {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-  <Text style={styles.sectionTitle}>Payments Details</Text>
-{DataType=='Main'?<><TouchableOpacity onPress={() => GetBill(tripData.bill_number)} disabled={fetchingBill}>
-    <Text style={styles.viewBtn}>{fetchingBill?('Fetching...'):('View Bill')}</Text>
-  </TouchableOpacity></>:null}
-  
-</View>
+          <Text style={styles.sectionTitle}>Payments Details</Text>
+          {DataType == 'Main' ? (
+            <TouchableOpacity onPress={() => GetBill(tripData.bill_number)} disabled={fetchingBill}>
+              <Text style={styles.viewBtn}>{fetchingBill ? ('Fetching...') : ('View Bill')}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Rate / MT :</Text>
           <Text style={styles.detailValue}>Rs: {tripData.rate}</Text>
@@ -519,22 +563,20 @@ const OpenGC = (id, DataType) => {
         </View>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Total Amount :</Text>
-           <Text style={styles.detailValue}>
-   Rs: {Math.round((Number(tripData.total) || 0) + (Number(tripData.total_fair) || 0))}
- </Text>
-
+          <Text style={styles.detailValue}>
+            Rs: {Math.round((Number(tripData.total) || 0) + (Number(tripData.total_fair) || 0))}
+          </Text>
         </View>
       </View>
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-  <Text style={styles.sectionTitle}>Payments Details</Text>
+          <Text style={styles.sectionTitle}>Payments Details</Text>
+          <TouchableOpacity onPress={() => navigation.navigate("Transactions", { transport_id: tripData, vehicle: vehicle, DataType })}>
+            <Text style={styles.viewBtn}>Transactions</Text>
+          </TouchableOpacity>
+        </View>
 
-  <TouchableOpacity onPress={() => navigation.navigate("Transactions",{transport_id:tripData,vehicle:vehicle,DataType})}>
-    <Text style={styles.viewBtn}>Transactions</Text>
-  </TouchableOpacity>
-</View>
- 
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Driver Cash</Text>
           <Text style={styles.detailValue}>₹{DriverCash}</Text>
@@ -548,94 +590,97 @@ const OpenGC = (id, DataType) => {
           <Text style={styles.detailValue}>₹{Advbc}</Text>
         </View>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Total Vehicle Expenses</Text>
-          <Text style={styles.detailValue}>₹{VE}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Total Driver Expenses</Text>
-          <Text style={styles.detailValue}>₹{DE}</Text>
-        </View>
-        
-        <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Total Remaining Due</Text>
           <Text style={styles.detailValue}>₹{Math.round(RE)}</Text>
         </View>
       </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Accounts Management</Text>
-        
         <View style={styles.buttonsContainer}>
-  <TouchableOpacity 
-    disabled={tripData.checkedBy == null ? false : true}
-    style={[
-      styles.button, 
-      styles.advanceButton,
-      { opacity: (tripData.checkedBy == null ? false : true) ? 0.5 : 1 }
-    ]}
-    onPress={() => OpenGC(transportData.id, DataType)}
-  >
-    <Text style={styles.buttonText}>Add Bilty Charge</Text>
-  </TouchableOpacity>
+          <TouchableOpacity
+            disabled={tripData.checkedBy == null ? false : true}
+            style={[
+              styles.button,
+              styles.advanceButton,
+              { opacity: (tripData.checkedBy == null ? false : true) ? 0.5 : 1 }
+            ]}
+            onPress={() => OpenGC(transportData.id, DataType)}
+          >
+            <Text style={styles.buttonText}>Add Bilty Charge</Text>
+          </TouchableOpacity>
 
-  <TouchableOpacity 
-    style={[
-      styles.button, 
-      styles.advanceButton,
-      { opacity: (tripData.checkedBy == null ? false : true) ? 0.5 : 1 }
-    ]}
-    disabled={tripData.checkedBy == null ? false : true}
-    onPress={() => handleButtonPress('Advance Account')}
-  >
-    <Text style={styles.buttonText}>Advance Account</Text>
-  </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.advanceButton,
+              { opacity: (tripData.checkedBy == null ? false : true) ? 0.5 : 1 }
+            ]}
+            disabled={tripData.checkedBy == null ? false : true}
+            onPress={() => handleButtonPress('Advance Account')}
+          >
+            <Text style={styles.buttonText}>Advance Account</Text>
+          </TouchableOpacity>
 
-  <TouchableOpacity 
-    style={[
-      styles.button, 
-      styles.companyButton,
-      { opacity: (tripData.checkedBy == null ? false : true) ? 0.5 : 1 }
-    ]}
-    disabled={tripData.checkedBy == null ? false : true}
-    onPress={() => handleButtonPress('Advance by Company')}
-  >
-    <Text style={styles.buttonText}>Advance by Company</Text>
-  </TouchableOpacity>
-  
-  <TouchableOpacity 
-    style={[
-      styles.button, 
-      styles.driverButton,
-      { opacity: (tripData.checkedBy == null ? false : true) ? 0.5 : 1 }
-    ]}
-    disabled={tripData.checkedBy == null ? false : true}
-    onPress={() => handleButtonPress('Driver Cash')}
-  >
-    <Text style={styles.buttonText}>Driver Cash</Text>
-  </TouchableOpacity>
-</View>
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.advanceButton,
+              { opacity: tripData.checkedBy == null ? 1 : 0.5 }
+            ]}
+            onPress={handleCreateTransaction}
+            disabled={tripData.checkedBy != null}
+          >
+            <Text style={styles.buttonText}>Create Transaction ID</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.companyButton,
+              { opacity: (tripData.checkedBy == null ? false : true) ? 0.5 : 1 }
+            ]}
+            disabled={tripData.checkedBy == null ? false : true}
+            onPress={() => handleButtonPress('Advance by Company')}
+          >
+            <Text style={styles.buttonText}>Advance by Company</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.driverButton,
+              { opacity: (tripData.checkedBy == null ? false : true) ? 0.5 : 1 }
+            ]}
+            disabled={tripData.checkedBy == null ? false : true}
+            onPress={() => handleButtonPress('Driver Cash')}
+          >
+            <Text style={styles.buttonText}>Driver Cash</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
-  {DataType=='Main'?<TouchableOpacity
-    style={[styles.button, styles.driverButton, { flex: 1, marginRight: 5 }]}
-    onPress={() => navigation.navigate('Report',{transport_id: tripData})}
-  >
-    <Text style={styles.buttonText}>View Report</Text>
-  </TouchableOpacity>:null}
-  
+          {DataType == 'Main' ? (
+            <TouchableOpacity
+              style={[styles.button, styles.driverButton, { flex: 1, marginRight: 5 }]}
+              onPress={() => navigation.navigate('Report', { transport_id: tripData })}
+            >
+              <Text style={styles.buttonText}>View Report</Text>
+            </TouchableOpacity>
+          ) : null}
 
-  {!tripData.transport_id && (
-    <TouchableOpacity
-      onPress={() => navigation.navigate('CloseTrip', { transport_id: tripData })}
-      style={[styles.button, styles.driverButton, { flex: 1, marginLeft: 5 }]}
-    >
-      <Text style={styles.buttonText}>Calculate</Text>
-    </TouchableOpacity>
-  )}
-  
-</View>
-
-
+          {!tripData.transport_id && (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('CloseTrip', { transport_id: tripData })}
+              style={[styles.button, styles.driverButton, { flex: 1, marginLeft: 5 }]}
+            >
+              <Text style={styles.buttonText}>Calculate</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
-     
+
+      {/* Company Advance Modal */}
       <Modal
         visible={companyAdvanceModal}
         animationType="slide"
@@ -646,7 +691,7 @@ const OpenGC = (id, DataType) => {
           <View style={styles.modalOverlay}>
             <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
               <Text style={styles.modalTitle}>Advance by Company</Text>
-              
+
               <Text style={styles.label}>Amount *</Text>
               <TextInput
                 style={styles.input}
@@ -664,7 +709,7 @@ const OpenGC = (id, DataType) => {
                 value={companyAdvanceData.comments}
                 onChangeText={(text) => setCompanyAdvanceData({...companyAdvanceData, comments: text})}
               />
-              
+
               <Text style={styles.label}>Location *</Text>
               <TextInput
                 style={styles.input}
@@ -697,116 +742,120 @@ const OpenGC = (id, DataType) => {
 
               {renderPaymentModeFields()}
               <View style={styles.modalButtons}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.modalButton, styles.cancelButton]}
                   onPress={() => setCompanyAdvanceModal(false)}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
-                
-                <TouchableOpacity 
+
+                <TouchableOpacity
                   style={[styles.modalButton, styles.submitButton]}
                   onPress={handleCompanyAdvanceSubmit}
                   disabled={AdvbcLoader}
                 >
-                    {AdvbcLoader ? (
-    <ActivityIndicator size="small" color="#fff" />
-  ) : (
-    <Text style={styles.submitButtonText}>Submit</Text>
-  )}
+                  {AdvbcLoader ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.submitButtonText}>Submit</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </ScrollView>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-      <Modal
-  visible={driverCashModal}
-  animationType="slide"
-  transparent={true}
-  onRequestClose={() => setDriverCashModal(false)}
->
-  <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-    <View style={styles.modalOverlay}>
-      <View style={styles.modalContent}>
-        <Text style={styles.modalTitle}>Driver Cash</Text>
-        
-        <Text style={styles.label}>Amount *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter amount"
-          placeholderTextColor="#999"
-          keyboardType="numeric"
-          value={driverCashData.amount}
-          onChangeText={(text) => setDriverCashData({...driverCashData, amount: text})}
-        />
-        
-        <Text style={styles.label}>Location *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter location"
-          placeholderTextColor="#999"
-          value={driverCashData.location}
-          onChangeText={(text) => setDriverCashData({...driverCashData, location: text})}
-        />
-        
-        <Text style={styles.label}>Paid By *</Text>
-        <View style={styles.paidByContainer}>
-          <TouchableOpacity 
-            style={[
-              styles.paidByButton, 
-              driverCashData.paidBy === 'Company' && styles.paidByButtonSelected
-            ]}
-            onPress={() => setDriverCashData({...driverCashData, paidBy: 'Company'})}
-          >
-            <Text style={[
-              styles.paidByText,
-              driverCashData.paidBy === 'Company' && styles.paidByTextSelected
-            ]}>
-              Company
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[
-              styles.paidByButton, 
-              driverCashData.paidBy === 'Party' && styles.paidByButtonSelected
-            ]}
-            onPress={() => setDriverCashData({...driverCashData, paidBy: 'Party'})}
-          >
-            <Text style={[
-              styles.paidByText,
-              driverCashData.paidBy === 'Party' && styles.paidByTextSelected
-            ]}>
-              Party
-            </Text>
-          </TouchableOpacity>
-        </View>
 
-        <View style={styles.modalButtons}>
-          <TouchableOpacity 
-            style={[styles.modalButton, styles.cancelButton]}
-            onPress={() => setDriverCashModal(false)}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.modalButton, styles.submitButton]}
-            onPress={handleDriverCashSubmit}
-            disabled={DCloading}
-          >
-            {DCloading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.submitButtonText}>Submit</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  </TouchableWithoutFeedback>
+      {/* Driver Cash Modal */}
+      <Modal
+        visible={driverCashModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setDriverCashModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Driver Cash</Text>
+
+              <Text style={styles.label}>Amount *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter amount"
+                placeholderTextColor="#999"
+                keyboardType="numeric"
+                value={driverCashData.amount}
+                onChangeText={(text) => setDriverCashData({...driverCashData, amount: text})}
+              />
+
+              <Text style={styles.label}>Location *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter location"
+                placeholderTextColor="#999"
+                value={driverCashData.location}
+                onChangeText={(text) => setDriverCashData({...driverCashData, location: text})}
+              />
+
+              <Text style={styles.label}>Paid By *</Text>
+              <View style={styles.paidByContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.paidByButton,
+                    driverCashData.paidBy === 'Company' && styles.paidByButtonSelected
+                  ]}
+                  onPress={() => setDriverCashData({...driverCashData, paidBy: 'Company'})}
+                >
+                  <Text style={[
+                    styles.paidByText,
+                    driverCashData.paidBy === 'Company' && styles.paidByTextSelected
+                  ]}>
+                    Company
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.paidByButton,
+                    driverCashData.paidBy === 'Party' && styles.paidByButtonSelected
+                  ]}
+                  onPress={() => setDriverCashData({...driverCashData, paidBy: 'Party'})}
+                >
+                  <Text style={[
+                    styles.paidByText,
+                    driverCashData.paidBy === 'Party' && styles.paidByTextSelected
+                  ]}>
+                    Party
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => setDriverCashModal(false)}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.submitButton]}
+                  onPress={handleDriverCashSubmit}
+                  disabled={DCloading}
+                >
+                  {DCloading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.submitButtonText}>Submit</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
+
+      {/* WebView Modal */}
       <Modal
         visible={webviewVisible}
         animationType="slide"
@@ -819,10 +868,10 @@ const OpenGC = (id, DataType) => {
               onPress={() => setWebviewVisible(false)}>
               <Text style={styles.closeText}>Close</Text>
             </TouchableOpacity>
-             <TouchableOpacity  onPress={generatePDF}style={styles.webviewTitle}>
+            <TouchableOpacity onPress={generatePDF} style={styles.webviewTitle}>
               <Text style={styles.webviewTitle}>Download</Text>
             </TouchableOpacity>
-            <View style={{ width: 70 }} /> {/* spacer to center title */}
+            <View style={{ width: 70 }} />
           </View>
 
           {htmlContent ? (
@@ -843,131 +892,147 @@ const OpenGC = (id, DataType) => {
           )}
         </SafeAreaView>
       </Modal>
-      <Modal
-  visible={guaranteeChargeModal}
-  animationType="slide"
-  transparent={true}
-  onRequestClose={() => setGuaranteeChargeModal(false)}
->
-  <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-    <View style={styles.modalOverlay}>
-      <View style={styles.modalContent}>
-        <Text style={styles.modalTitle}>Bilty Charge</Text>
-        
-        <Text style={styles.label}>Amount *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter amount"
-          placeholderTextColor="#999"
-          keyboardType="numeric"
-          value={guaranteeChargeData.amount}
-          onChangeText={(text) => setGuaranteeChargeData({...guaranteeChargeData, amount: text})}
-        />
-        
-        <View style={styles.modalButtons}>
-          <TouchableOpacity 
-            style={[styles.modalButton, styles.cancelButton]}
-            onPress={() => setGuaranteeChargeModal(false)}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.modalButton, styles.submitButton]}
-            onPress={handleGuaranteeChargeSubmit}
-            disabled={GCloading}
-          >
-            {GCloading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.submitButtonText}>Submit</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  </TouchableWithoutFeedback>
-</Modal>
 
-<Modal
-  visible={advanceAccountModal}
-  animationType="slide"
-  transparent={true}
-  onRequestClose={() => setAdvanceAccountModal(false)}
->
-  <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-    <View style={styles.modalOverlay}>
-      <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.modalTitle}>Advance Account</Text>
-        
-        <Text style={styles.label}>Amount *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter amount"
-          placeholderTextColor="#999"
-          keyboardType="numeric"
-          value={advanceAccountData.amount}
-          onChangeText={(text) => setAdvanceAccountData({...advanceAccountData, amount: text})}
-        />
-        
-        <Text style={styles.label}>Location *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter location"
-          placeholderTextColor="#999"
-          value={advanceAccountData.location}
-          onChangeText={(text) => setAdvanceAccountData({...advanceAccountData, location: text})}
-        />
-        
-        <Text style={styles.label}>Comment</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="Enter comment (optional)"
-          placeholderTextColor="#999"
-          value={advanceAccountData.comment}
-          onChangeText={(text) => setAdvanceAccountData({...advanceAccountData, comment: text})}
-          multiline={true}
-          numberOfLines={3}
-        />
-        
-        <Text style={styles.label}>Payment Photo (Optional)</Text>
-        <TouchableOpacity 
-          style={styles.uploadButton}
-          onPress={() => selectImage('advanceAccount', 'paymentPhoto')}
-        >
-          <Text style={styles.uploadButtonText}>
-            {advanceAccountData.paymentPhoto ? 'Image Selected (Opens Cropper)' : 'Select Payment Photo (Opens Cropper)'}
-          </Text>
-        </TouchableOpacity>
-        
-        {advanceAccountData.paymentPhoto && (
-          <Image source={{ uri: advanceAccountData.paymentPhoto }} style={styles.previewImage} />
-        )}
-        
-        <View style={styles.modalButtons}>
-          <TouchableOpacity 
-            style={[styles.modalButton, styles.cancelButton]}
-            onPress={() => setAdvanceAccountModal(false)}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.modalButton, styles.submitButton]}
-            onPress={handleAdvanceAccountSubmit}
-            disabled={AdvaLoader}
-          >
-            {AdvaLoader ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.submitButtonText}>Submit</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </View>
-  </TouchableWithoutFeedback>
-</Modal>
+      {/* Guarantee Charge Modal */}
+      <Modal
+        visible={guaranteeChargeModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setGuaranteeChargeModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Bilty Charge</Text>
+
+              <Text style={styles.label}>Amount *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter amount"
+                placeholderTextColor="#999"
+                keyboardType="numeric"
+                value={guaranteeChargeData.amount}
+                onChangeText={(text) => setGuaranteeChargeData({...guaranteeChargeData, amount: text})}
+              />
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => setGuaranteeChargeModal(false)}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.submitButton]}
+                  onPress={handleGuaranteeChargeSubmit}
+                  disabled={GCloading}
+                >
+                  {GCloading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.submitButtonText}>Submit</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Advance Account Modal */}
+      <Modal
+        visible={advanceAccountModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setAdvanceAccountModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>Advance Account</Text>
+
+              <Text style={styles.label}>Amount *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter amount"
+                placeholderTextColor="#999"
+                keyboardType="numeric"
+                value={advanceAccountData.amount}
+                onChangeText={(text) => setAdvanceAccountData({...advanceAccountData, amount: text})}
+              />
+
+              <Text style={styles.label}>Location *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter location"
+                placeholderTextColor="#999"
+                value={advanceAccountData.location}
+                onChangeText={(text) => setAdvanceAccountData({...advanceAccountData, location: text})}
+              />
+
+              <Text style={styles.label}>Comment</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Enter comment (optional)"
+                placeholderTextColor="#999"
+                value={advanceAccountData.comment}
+                onChangeText={(text) => setAdvanceAccountData({...advanceAccountData, comment: text})}
+                multiline={true}
+                numberOfLines={3}
+              />
+
+              <Text style={styles.label}>Payment Photo (Optional)</Text>
+              <TouchableOpacity
+                style={styles.uploadButton}
+                onPress={() => selectImage('advanceAccount', 'paymentPhoto')}
+              >
+                <Text style={styles.uploadButtonText}>
+                  {advanceAccountData.paymentPhoto ? 'Image Selected (Opens Cropper)' : 'Select Payment Photo (Opens Cropper)'}
+                </Text>
+              </TouchableOpacity>
+
+              {advanceAccountData.paymentPhoto && (
+                <Image source={{ uri: advanceAccountData.paymentPhoto }} style={styles.previewImage} />
+              )}
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => setAdvanceAccountModal(false)}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.submitButton]}
+                  onPress={handleAdvanceAccountSubmit}
+                  disabled={AdvaLoader}
+                >
+                  {AdvaLoader ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.submitButtonText}>Submit</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Split Payment Modal */}
+      <SplitPaymentModal
+        visible={splitModalVisible}
+        onClose={() => setSplitModalVisible(false)}
+        onSubmit={handleSplitSubmit}
+        loader={splitLoader}
+        initialData={{
+          tripId: tripData.tripId || tripData.id || '',
+          location: tripData.location || '',
+          amount: tripData.total || ''
+        }}
+      />
     </ScrollView>
   );
 };
@@ -978,7 +1043,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     gap: 10,
   },
-   disabledButton: {
+  disabledButton: {
     backgroundColor: '#CCCCCC',
     opacity: 0.6,
   },
@@ -987,21 +1052,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  billButton:{
-    backgroundColor:'#006D5B',
-    marginLeft:'50%',
+  billButton: {
+    backgroundColor: '#006D5B',
+    marginLeft: '50%',
     padding: wp('4%'),
-   
-    width:wp('100%'),
-    top:'-17%',
-    left:'20%',
-    borderRadius:5,
+    width: wp('100%'),
+    top: '-17%',
+    left: '20%',
+    borderRadius: 5,
   },
-  billtext:{
-    color:'white',
-    textAlign:'center',
-    fontSize:18,
-    padding:5,
+  billtext: {
+    color: 'white',
+    textAlign: 'center',
+    fontSize: 18,
+    padding: 5,
   },
   paidByButton: {
     flex: 1,
@@ -1026,10 +1090,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   container: {
-    
     backgroundColor: '#f5f5f5',
     padding: 16,
-    marginBottom:wp('10%')
+    marginBottom: wp('10%')
   },
   section: {
     backgroundColor: '#fff',
@@ -1041,8 +1104,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-   
-   
   },
   sectionTitle: {
     fontSize: wp('4%'),
@@ -1097,7 +1158,6 @@ const styles = StyleSheet.create({
     fontSize: wp('4%'),
     fontWeight: 'bold',
   },
-  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -1111,7 +1171,6 @@ const styles = StyleSheet.create({
     padding: 24,
     width: '100%',
     maxHeight: '100%',
-    
   },
   modalTitle: {
     fontSize: wp('5%'),
@@ -1230,7 +1289,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 10,
     alignItems: 'center',
-    marginBottom:50
+    marginBottom: 50
   },
   cancelButton: {
     backgroundColor: '#f0f0f0',
@@ -1251,25 +1310,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   sectionHeader: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  marginBottom: 10,
-},
-
-viewBtn: {
-  fontSize: wp('3%'),
-  color: '#006D5B',
-  padding:wp('2%'),
-  borderColor:'#006D5B',
-  borderWidth:2,
-  borderRadius:5,
-  fontWeight: '600',
-},
- billText: { color: '#fff', fontWeight: '600' },
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  viewBtn: {
+    fontSize: wp('3%'),
+    color: '#006D5B',
+    padding: wp('2%'),
+    borderColor: '#006D5B',
+    borderWidth: 2,
+    borderRadius: 5,
+    fontWeight: '600',
+  },
+  billText: { color: '#fff', fontWeight: '600' },
   loadingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
   errorText: { color: 'red', marginTop: 8 },
-
   webviewHeader: {
     height: 56,
     flexDirection: 'row',

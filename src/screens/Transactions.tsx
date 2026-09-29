@@ -306,6 +306,15 @@ const renderEmptyComponent = () => (
                             </TouchableOpacity>
                         )}
 
+                        {UserType === 'Admin' && item.paymentStatus === 'Success' && (
+                            <TouchableOpacity
+                                style={[styles.deleteButton, showActionButton && { marginRight: 8 }]}
+                                onPress={() => handleDelete(item.id)}
+                            >
+                                <Text style={styles.deleteButtonText}>DELETE</Text>
+                            </TouchableOpacity>
+                        )}
+
                         {showActionButton && (
                             <TouchableOpacity
                                 style={styles.approveButton}

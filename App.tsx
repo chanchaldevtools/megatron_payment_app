@@ -24,10 +24,9 @@ import Report from './src/screens/Report';
 import Menu from './src/screens/Menu';
 import DriverDetails from './src/screens/DriverDetails';
 import DriverCredits from './src/screens/DriverCredit';
-import * as Sentry from '@sentry/react-native';
-
-
-
+import { SafeAreaView } from 'react-native-safe-area-context';
+// ✅ FIX: Lazy load Sentry to avoid React duplication
+// import * as Sentry from '@sentry/react-native';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -36,13 +35,10 @@ const Tab = createBottomTabNavigator();
 const cleanApkUrl = (rawUrl: string): string => {
   if (!rawUrl) return '';
   
-  // Split by newlines and take the last non-empty line (assuming the actual URL is at the end)
   const lines = rawUrl.split('\r\n').filter(line => line.trim().length > 0);
   let url = lines[lines.length - 1] || rawUrl;
-  
   url = url.trim();
   
-  // Ensure URL has proper protocol
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     url = 'https://' + url;
   }
@@ -55,7 +51,6 @@ const cleanApkUrl = (rawUrl: string): string => {
 const MaintenanceScreen = ({ maintenanceData }: { maintenanceData: any }) => {
   const { note, max_time } = maintenanceData || {};
   
-  // Convert max_time from minutes to hours and minutes if needed
   const formatTime = (minutes: number) => {
     if (minutes < 60) {
       return `${minutes} minutes`;
@@ -105,7 +100,7 @@ const MaintenanceScreen = ({ maintenanceData }: { maintenanceData: any }) => {
       
       <TouchableOpacity 
         style={styles.retryButton}
-        onPress={() => window.location.reload()} // Reload the app to recheck status
+        onPress={() => window.location.reload()}
       >
         <Icon name="refresh-outline" size={20} color="#fff" />
         <Text style={styles.retryButtonText}>Check Status Again</Text>
@@ -114,7 +109,7 @@ const MaintenanceScreen = ({ maintenanceData }: { maintenanceData: any }) => {
   );
 };
 
-// Upgrade Screen Component
+// ✅ FIXED: useState is now properly inside the component
 const UpgradeScreen = ({ apkUrl }: { apkUrl: string }) => {
   const [cleanedUrl, setCleanedUrl] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
@@ -268,7 +263,7 @@ const checkAppVersion = async (): Promise<{
       const currentVersion = data.data.current_version.toString();
       const rawApkUrl = data.data.apk_url;
       const cleanedApkUrl = cleanApkUrl(rawApkUrl);
-      const appVersion = "12"; // TODO: Replace with DeviceInfo.getVersion()
+      const appVersion = "14";
       console.log('API Version:', currentVersion, 'App Version:', appVersion, 'APK URL:', cleanedApkUrl);
       return {
         requiresUpdate: currentVersion !== appVersion,
@@ -284,7 +279,6 @@ const checkAppVersion = async (): Promise<{
   }
 };
 
-// Updated HomeStack - Only contains screens unique to Home tab
 const HomeStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Dashboard" component={Dashboard} options={{ headerShown: false }}/>
@@ -295,14 +289,12 @@ const HomeStack = () => (
   </Stack.Navigator>
 );
 
-// Updated PaymentsStack - Only contains screens unique to Payments tab
 const PaymentsStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="PaymentsList" component={AllTransactions} />
   </Stack.Navigator>
 );
 
-// Updated MenuStack - Only contains screens unique to Menu tab
 const MenuStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Menu" component={Menu} />
@@ -374,7 +366,6 @@ const App = () => {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // First check maintenance mode
         const maintenanceCheck = await checkMaintenanceMode();
         
         if (maintenanceCheck.isMaintenance) {
@@ -383,7 +374,6 @@ const App = () => {
           return;
         }
 
-        // If no maintenance, check version
         const versionCheck = await checkAppVersion();
         
         if (versionCheck.requiresUpdate) {
@@ -392,7 +382,6 @@ const App = () => {
           return;
         }
 
-        // If no maintenance and no update required, check login status
         const userData = await AsyncStorage.getItem('userData');
         if (userData) {
           setInitialRoute('Main');
@@ -403,7 +392,6 @@ const App = () => {
         setAppStatus('ready');
       } catch (e) {
         console.error('Error during app initialization:', e);
-        // Continue with app even if checks fail
         try {
           const userData = await AsyncStorage.getItem('userData');
           setInitialRoute(userData ? 'Main' : 'Login');
@@ -423,7 +411,6 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
-  // Show loading while checking
   if (appStatus === 'checking') {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -433,7 +420,6 @@ const App = () => {
     );
   }
 
-  // Show maintenance screen if in maintenance mode
   if (appStatus === 'maintenance') {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
@@ -444,7 +430,6 @@ const App = () => {
     );
   }
 
-  // Show upgrade screen if update is required
   if (appStatus === 'update') {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
@@ -455,7 +440,6 @@ const App = () => {
     );
   }
 
-  // Show loading while determining initial route
   if (!initialRoute) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -471,8 +455,7 @@ const App = () => {
           <RootStack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
             <RootStack.Screen name="Login" component={OTPLoginScreen} />
             <RootStack.Screen name="Main" component={MainTabs} />
-             <Stack.Screen name="CloseTrip" component={CloseTrip} />
-            {/* Shared Screens - Accessible from any tab */}
+            <Stack.Screen name="CloseTrip" component={CloseTrip} />
             <RootStack.Screen name="TripDetail" component={TripDetail} />
             <RootStack.Screen name="Transactions" component={Transactions} />
             <RootStack.Screen name="AddTripScreen" component={AddTripScreen} />
@@ -488,7 +471,6 @@ const App = () => {
 };
 
 const styles = StyleSheet.create({
-  // Existing styles...
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -538,7 +520,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   
-  // Maintenance Screen Styles
   maintenanceContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -627,4 +608,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default App();
+export default App;
